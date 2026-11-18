@@ -133,6 +133,15 @@ namespace Microsoft.AspNet.SignalR.Client.Transports
         // virtual to allow mocking
         protected internal virtual bool ProcessResponse(IConnection connection, string response)
         {
+            return ProcessResponse(connection, response, attachments: null);
+        }
+
+        /// <summary>
+        /// Processes a response that came with attachments, see <see cref="BinaryAttachments.Restore"/>.
+        /// </summary>
+        [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "The client receives the exception in the OnError callback.")]
+        internal bool ProcessResponse(IConnection connection, string response, IList<byte[]> attachments)
+        {
             if (connection == null)
             {
                 throw new ArgumentNullException("connection");
@@ -155,6 +164,11 @@ namespace Microsoft.AspNet.SignalR.Client.Transports
             try
             {
                 var result = connection.JsonDeserializeObject<JObject>(response);
+
+                if (attachments != null)
+                {
+                    BinaryAttachments.Restore(result, attachments);
+                }
 
                 if (!result.HasValues)
                 {

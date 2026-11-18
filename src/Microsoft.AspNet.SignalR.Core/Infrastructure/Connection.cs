@@ -153,7 +153,9 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             }
 
             // Serialize once
+            IList<byte[]> attachments = BinaryAttachments.Extract(ref value, BinaryPayloadSerializer);
             ArraySegment<byte> messageBuffer = GetMessageBuffer(value);
+            BinaryAttachments.Verify(messageBuffer, attachments, BinaryPayloadSerializer);
             string filter = GetFilter(excludedSignals);
 
             var tasks = new Task[signals.Count];
@@ -162,6 +164,7 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             for (int i = 0; i < signals.Count; i++)
             {
                 var message = new Message(_connectionId, signals[i], messageBuffer);
+                message.Attachments = attachments;
 
                 if (!String.IsNullOrEmpty(filter))
                 {
@@ -187,9 +190,12 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
 
         private Message CreateMessage(string key, object value)
         {
+            IList<byte[]> attachments = BinaryAttachments.Extract(ref value, BinaryPayloadSerializer);
             ArraySegment<byte> messageBuffer = GetMessageBuffer(value);
+            BinaryAttachments.Verify(messageBuffer, attachments, BinaryPayloadSerializer);
 
             var message = new Message(_connectionId, key, messageBuffer);
+            message.Attachments = attachments;
 
             var command = value as Command;
             if (command != null)
@@ -201,6 +207,11 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
 
             return message;
         }
+
+        /// <summary>
+        /// Decides which values are stored as attachments of a message. Null when the application didn't register one.
+        /// </summary>
+        internal IBinaryPayloadSerializer BinaryPayloadSerializer { get; set; }
 
         private ArraySegment<byte> GetMessageBuffer(object value)
         {

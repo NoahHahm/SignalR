@@ -137,7 +137,7 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
                                   _resolver.Resolve<IAckHandler>(),
                                   _resolver.Resolve<IPerformanceCounterManager>(),
                                   _resolver.Resolve<IProtectedData>(),
-                                  _resolver.Resolve<IMemoryPool>());
+                                  _resolver.Resolve<IMemoryPool>()) { BinaryPayloadSerializer = _resolver.Resolve<IBinaryPayloadSerializer>() };
         }
     }
 }

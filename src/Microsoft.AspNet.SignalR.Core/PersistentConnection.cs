@@ -34,6 +34,7 @@ namespace Microsoft.AspNet.SignalR
         private static readonly ProtocolResolver _protocolResolver = new ProtocolResolver();
 
         private IConfigurationManager _configurationManager;
+        private IBinaryPayloadSerializer _binaryPayloadSerializer;
         private ITransportManager _transportManager;
         private bool _initialized;
 
@@ -57,6 +58,7 @@ namespace Microsoft.AspNet.SignalR
             AckHandler = resolver.Resolve<IAckHandler>();
             ProtectedData = resolver.Resolve<IProtectedData>();
             UserIdProvider = resolver.Resolve<IUserIdProvider>();
+            _binaryPayloadSerializer = resolver.Resolve<IBinaryPayloadSerializer>();
 
             _configurationManager = resolver.Resolve<IConfigurationManager>();
             _transportManager = resolver.Resolve<ITransportManager>();
@@ -401,7 +403,7 @@ namespace Microsoft.AspNet.SignalR
                                   AckHandler,
                                   Counters,
                                   ProtectedData,
-                                  Pool);
+                                  Pool) { BinaryPayloadSerializer = _binaryPayloadSerializer };
         }
 
         [SuppressMessage("Microsoft.Usage", "CA1801:ReviewUnusedParameters", MessageId = "userId", Justification = "This method is virtual and is used in the derived class")]

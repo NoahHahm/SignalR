@@ -20,6 +20,11 @@ namespace Microsoft.AspNet.SignalR.Json
             _value = value.ToString();
         }
 
+        internal bool IsBinaryPlaceholder
+        {
+            get { return _value == Infrastructure.BinaryEnvelope.Placeholder; }
+        }
+
         public object ConvertTo(Type type)
         {
             // A non generic implementation of ToObject<T> on JToken

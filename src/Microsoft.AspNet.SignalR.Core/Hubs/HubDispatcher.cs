@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
+using Microsoft.AspNet.SignalR.Transports;
 using Newtonsoft.Json;
 
 namespace Microsoft.AspNet.SignalR.Hubs
@@ -148,6 +149,13 @@ namespace Microsoft.AspNet.SignalR.Hubs
         protected override Task OnReceived(IRequest request, string connectionId, string data)
         {
             HubRequest hubRequest = _requestParser.Parse(data, _serializer);
+
+            var webSocketTransport = Transport as WebSocketTransport;
+            if (webSocketTransport != null && webSocketTransport.ReceivedAttachments != null)
+            {
+                // The request arrived as a binary message, some of its arguments are attachments instead of JSON
+                hubRequest.ParameterValues = BinaryAttachments.Restore(hubRequest.ParameterValues, webSocketTransport.ReceivedAttachments);
+            }
 
             // Create the hub
             HubDescriptor descriptor = _manager.EnsureHub(hubRequest.Hub,

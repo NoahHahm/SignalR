@@ -144,6 +144,7 @@ namespace Microsoft.AspNet.SignalR.Transports
 
             // If the writer is a binary writer then write to the underlying writer directly
             var binaryWriter = writer as IBinaryWriter;
+            var attachmentWriter = writer as BinaryAttachmentTextWriter;
 
             bool first = true;
 
@@ -164,8 +165,21 @@ namespace Microsoft.AspNet.SignalR.Transports
                                 writer.Write(',');
                             }
 
-                            // If we can write binary then just write it
-                            binaryWriter.Write(message.Value);
+                            if (message.Attachments != null && attachmentWriter == null)
+                            {
+                                // This transport can't send attachments, so write them inline
+                                writer.Write(message.GetString());
+                            }
+                            else
+                            {
+                                // If we can write binary then just write it
+                                binaryWriter.Write(message.Value);
+
+                                if (message.Attachments != null)
+                                {
+                                    attachmentWriter.Attachments.AddRange(message.Attachments);
+                                }
+                            }
 
                             first = false;
                         }

@@ -30,6 +30,7 @@ namespace Microsoft.AspNet.SignalR.Transports
         private readonly int? _maxIncomingMessageSize;
 
         private readonly Action<string> _message;
+        private readonly Action<byte[]> _binaryMessage;
         private readonly Action _closed;
         private readonly Action<Exception> _error;
         private readonly IPerformanceCounterManager _counters;
@@ -46,6 +47,7 @@ namespace Microsoft.AspNet.SignalR.Transports
                    resolver.Resolve<IMemoryPool>(),
                    resolver.Resolve<IConfigurationManager>().MaxIncomingWebSocketMessageSize)
         {
+            BinaryPayloadSerializer = resolver.Resolve<IBinaryPayloadSerializer>();
         }
 
         public WebSocketTransport(HostContext context,
@@ -61,6 +63,7 @@ namespace Microsoft.AspNet.SignalR.Transports
             _maxIncomingMessageSize = maxIncomingMessageSize;
 
             _message = OnMessage;
+            _binaryMessage = OnBinaryMessage;
             _closed = OnClosed;
             _error = OnSocketError;
 
@@ -74,6 +77,16 @@ namespace Microsoft.AspNet.SignalR.Transports
                 return _isAlive;
             }
         }
+
+        /// <summary>
+        /// The attachments of the binary message that is being received. Only set while <see cref="ForeverTransport.Received"/> runs.
+        /// </summary>
+        internal IList<byte[]> ReceivedAttachments { get; private set; }
+
+        /// <summary>
+        /// Decides which values are sent as attachments. Null when the application didn't register one, then everything is sent as JSON.
+        /// </summary>
+        internal IBinaryPayloadSerializer BinaryPayloadSerializer { get; private set; }
 
         public override CancellationToken CancellationToken
         {
@@ -150,6 +163,7 @@ namespace Microsoft.AspNet.SignalR.Transports
                 _socket = socket;
                 socket.OnClose = _closed;
                 socket.OnMessage = _message;
+                socket.OnBinaryMessage = _binaryMessage;
                 socket.OnError = _error;
             };
 
@@ -163,14 +177,29 @@ namespace Microsoft.AspNet.SignalR.Transports
             var context = (WebSocketTransportContext)state;
             var socket = context.Transport._socket;
 
-            using (var writer = new BinaryMemoryPoolTextWriter(context.Transport.Pool))
+            using (var writer = new BinaryAttachmentTextWriter(context.Transport.Pool))
             {
                 try
                 {
-                    context.Transport.JsonSerializer.Serialize(context.State, writer);
+                    object value = context.State;
+
+                    if (context.Transport.BinaryPayloadSerializer != null)
+                    {
+                        value = BinaryAttachments.Extract(value, context.Transport.BinaryPayloadSerializer, writer.Attachments);
+                    }
+
+                    context.Transport.JsonSerializer.Serialize(value, writer);
                     writer.Flush();
 
-                    await socket.Send(writer.Buffer).PreserveCulture();
+                    if (writer.Attachments.Count == 0)
+                    {
+                        await socket.Send(writer.Buffer).PreserveCulture();
+                    }
+                    else
+                    {
+                        // The attachments are sent as they are, in a binary message, next to the JSON
+                        await socket.SendBinary(BinaryEnvelope.Write(writer.Buffer, writer.Attachments)).PreserveCulture();
+                    }
 
                     context.Transport.TraceOutgoingMessage(writer.Buffer);
                 }
@@ -189,6 +218,26 @@ namespace Microsoft.AspNet.SignalR.Transports
             if (Received != null)
             {
                 Received(message).Catch(Trace);
+            }
+        }
+
+        private void OnBinaryMessage(byte[] message)
+        {
+            if (Received != null)
+            {
+                string json;
+
+                // Received reads the hub request synchronously, so the attachments are only needed until it returns
+                ReceivedAttachments = BinaryEnvelope.Read(message, out json);
+
+                try
+                {
+                    Received(json).Catch(Trace);
+                }
+                finally
+                {
+                    ReceivedAttachments = null;
+                }
             }
         }
 

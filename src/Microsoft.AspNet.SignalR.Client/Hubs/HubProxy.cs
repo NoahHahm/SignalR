@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Client.Transports;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -94,9 +95,24 @@ namespace Microsoft.AspNet.SignalR.Client.Hubs
                 throw new ArgumentNullException("args");
             }
 
+            var binaryTransport = _connection.Transport as IBinaryAttachmentTransport;
+            IBinaryPayloadSerializer payloadSerializer = binaryTransport != null ? binaryTransport.BinaryPayloadSerializer : null;
+            List<byte[]> attachments = null;
+
             var tokenifiedArguments = new JToken[args.Length];
             for (int i = 0; i < tokenifiedArguments.Length; i++)
             {
+                byte[] payload;
+
+                if (args[i] != null && payloadSerializer != null && payloadSerializer.TrySerialize(args[i], out payload) && payload != null)
+                {
+                    // Sent as it is, next to the JSON
+                    attachments = attachments ?? new List<byte[]>();
+                    attachments.Add(payload);
+                    tokenifiedArguments[i] = new JRaw(BinaryEnvelope.Placeholder);
+                    continue;
+                }
+
                 tokenifiedArguments[i] = args[i] != null
                     ? JToken.FromObject(args[i], JsonSerializer)
                     : JValue.CreateNull();
@@ -181,7 +197,11 @@ namespace Microsoft.AspNet.SignalR.Client.Hubs
 
             value = value ?? _connection.JsonSerializeObject(hubData);
 
-            _connection.Send(value).ContinueWith(task =>
+            Task sendTask = attachments == null
+                ? _connection.Send(value)
+                : binaryTransport.Send(_connection, value, attachments);
+
+            sendTask.ContinueWith(task =>
             {
                 if (task.IsCanceled)
                 {

@@ -11,7 +11,7 @@ using Microsoft.AspNet.SignalR.Infrastructure;
 
 namespace Microsoft.AspNet.SignalR.Client.Transports
 {
-    public class AutoTransport : IClientTransport
+    public class AutoTransport : IClientTransport, IBinaryAttachmentTransport
     {
         private readonly IHttpClient _httpClient;
 
@@ -55,6 +55,21 @@ namespace Microsoft.AspNet.SignalR.Client.Transports
             {
                 return _transport != null ? _transport.SupportsKeepAlive : false;
             }
+        }
+
+        // Answers for the transport that was picked, null when that one can't send attachments
+        IBinaryPayloadSerializer IBinaryAttachmentTransport.BinaryPayloadSerializer
+        {
+            get
+            {
+                var transport = _transport as IBinaryAttachmentTransport;
+                return transport != null ? transport.BinaryPayloadSerializer : null;
+            }
+        }
+
+        Task IBinaryAttachmentTransport.Send(IConnection connection, string data, IList<byte[]> attachments)
+        {
+            return ((IBinaryAttachmentTransport)_transport).Send(connection, data, attachments);
         }
 
         public string Name

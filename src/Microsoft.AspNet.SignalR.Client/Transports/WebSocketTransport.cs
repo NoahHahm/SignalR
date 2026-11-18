@@ -4,17 +4,20 @@
 #if NET45 || NETSTANDARD2_0
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Client.Http;
 using Microsoft.AspNet.SignalR.Client.Infrastructure;
 using Microsoft.AspNet.SignalR.Client.Transports.WebSockets;
+using Microsoft.AspNet.SignalR.Infrastructure;
 
 namespace Microsoft.AspNet.SignalR.Client.Transports
 {
-    public class WebSocketTransport : ClientTransportBase
+    public class WebSocketTransport : ClientTransportBase, IBinaryAttachmentTransport
     {
         private readonly ClientWebSocketHandler _webSocketHandler;
         private CancellationToken _disconnectToken;
@@ -48,6 +51,12 @@ namespace Microsoft.AspNet.SignalR.Client.Transports
         /// The time to wait after a connection drops to try reconnecting.
         /// </summary>
         public TimeSpan ReconnectDelay { get; set; }
+
+        /// <summary>
+        /// Decides which hub method arguments are sent as raw bytes instead of JSON.
+        /// When null (the default) everything is sent as JSON. Values received as raw bytes are always handed over as a byte[].
+        /// </summary>
+        public IBinaryPayloadSerializer BinaryPayloadSerializer { get; set; }
 
         /// <summary>
         /// Indicates whether or not the transport supports keep alive
@@ -137,12 +146,47 @@ namespace Microsoft.AspNet.SignalR.Client.Transports
             return _webSocketHandler.SendAsync(data);
         }
 
+        Task IBinaryAttachmentTransport.Send(IConnection connection, string data, IList<byte[]> attachments)
+        {
+            var webSocket = _webSocketHandler.WebSocket;
+
+            // If we don't fail here when the WebSocket isn't open, WebSocketHander.SendAsync will noop.
+            if (connection.State != ConnectionState.Connected || webSocket == null || webSocket.State != WebSocketState.Open)
+            {
+                var ex = new InvalidOperationException(Resources.Error_DataCannotBeSentDuringWebSocketReconnect);
+                connection.OnError(ex);
+                return TaskAsyncHelper.FromError(ex);
+            }
+
+            var json = new ArraySegment<byte>(Encoding.UTF8.GetBytes(data));
+
+            // An argument that is serialized as the placeholder itself would be taken for a binary one by the server
+            if (BinaryEnvelope.CountPlaceholders(json) != attachments.Count)
+            {
+                return TaskAsyncHelper.FromError(new InvalidOperationException(BinaryEnvelope.ReservedValueError));
+            }
+
+            return _webSocketHandler.SendAsync(BinaryEnvelope.Write(json, attachments), WebSocketMessageType.Binary);
+        }
+
         // virtual for testing
         internal virtual void OnMessage(string message)
         {
             _connection.Trace(TraceLevels.Messages, "WS: OnMessage({0})", message);
 
             ProcessResponse(_connection, message);
+        }
+
+        // virtual for testing
+        internal virtual void OnMessage(byte[] message)
+        {
+            // A binary message is a JSON message with some of its values sent as they are, next to the JSON
+            string json;
+            IList<byte[]> attachments = BinaryEnvelope.Read(message, out json);
+
+            _connection.Trace(TraceLevels.Messages, "WS: OnMessage({0}) with {1} binary attachment(s)", json, attachments.Count);
+
+            ProcessResponse(_connection, json, attachments);
         }
 
         // virtual for testing

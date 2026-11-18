@@ -32,5 +32,17 @@ namespace Microsoft.AspNet.SignalR.Hosting
         /// <param name="message">The value to send.</param>
         /// <returns>A <see cref="Task"/> that represents the send is complete.</returns>
         Task Send(ArraySegment<byte> message);
+
+        /// <summary>
+        /// Invoked when a binary message is received.
+        /// </summary>
+        Action<byte[]> OnBinaryMessage { get; set; }
+
+        /// <summary>
+        /// Sends a binary message over the websocket.
+        /// </summary>
+        /// <param name="message">The binary message to send.</param>
+        /// <returns>A <see cref="Task"/> that represents the send is complete.</returns>
+        Task SendBinary(ArraySegment<byte> message);
     }
 }

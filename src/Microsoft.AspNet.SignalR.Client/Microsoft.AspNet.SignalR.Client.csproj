@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Microsoft.AspNet.SignalR.Core\Infrastructure\BinaryEnvelope.cs" Link="Infrastructure\BinaryEnvelope.cs" />
     <Compile Include="..\Microsoft.AspNet.SignalR.Core\Infrastructure\CancellationTokenExtensions.cs" Link="Infrastructure\CancellationTokenExtensions.cs" />
     <Compile Include="..\Microsoft.AspNet.SignalR.Core\Infrastructure\DispatchingTaskCompletionSource.cs" Link="Infrastructure\DispatchingTaskCompletionSource.cs" />
     <Compile Include="..\Microsoft.AspNet.SignalR.Core\Infrastructure\DisposableAction.cs" Link="Infrastructure\DisposableAction.cs" />

@@ -2,9 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
+using Microsoft.AspNet.SignalR.Json;
 
 namespace Microsoft.AspNet.SignalR.Messaging
 {
@@ -105,6 +107,11 @@ namespace Microsoft.AspNet.SignalR.Messaging
         /// </summary>
         public int StreamIndex { get; set; }
 
+        /// <summary>
+        /// The byte[] values that were taken out of <see cref="Value"/>, which has a placeholder in place of each one.
+        /// </summary>
+        internal IList<byte[]> Attachments { get; set; }
+
         public bool IsCommand
         {
             get
@@ -122,7 +129,9 @@ namespace Microsoft.AspNet.SignalR.Messaging
                 throw new NotSupportedException();
             }
 
-            return Encoding.GetString(Value.Array, Value.Offset, Value.Count);
+            string value = Encoding.GetString(Value.Array, Value.Offset, Value.Count);
+
+            return Attachments == null ? value : BinaryAttachments.Inline(value, Attachments);
         }
 
         public void WriteTo(Stream stream)
@@ -130,8 +139,10 @@ namespace Microsoft.AspNet.SignalR.Messaging
             var binaryWriter = new BinaryWriter(stream);
             binaryWriter.Write(Source);
             binaryWriter.Write(Key);
-            binaryWriter.Write(Value.Count);
-            binaryWriter.Write(Value.Array, Value.Offset, Value.Count);
+            // Attachments are not part of the stream format, so they are written back into the value
+            ArraySegment<byte> value = Attachments == null ? Value : new ArraySegment<byte>(Encoding.GetBytes(GetString()));
+            binaryWriter.Write(value.Count);
+            binaryWriter.Write(value.Array, value.Offset, value.Count);
             binaryWriter.Write(CommandId ?? String.Empty);
             binaryWriter.Write(WaitForAck);
             binaryWriter.Write(IsAck);

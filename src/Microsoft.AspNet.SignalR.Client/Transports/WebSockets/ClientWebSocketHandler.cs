@@ -31,6 +31,11 @@ namespace Microsoft.AspNet.SignalR.Client.Transports.WebSockets
             _webSocketTransport.OnMessage(message);
         }
 
+        public override void OnMessage(byte[] message)
+        {
+            _webSocketTransport.OnMessage(message);
+        }
+
         public override void OnOpen()
         {
             _webSocketTransport.OnOpen();

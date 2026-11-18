@@ -40,7 +40,18 @@ namespace Microsoft.AspNet.SignalR.WebSockets
             _webSocket.OnMessage(message);
         }
 
+        public override void OnMessage(byte[] message)
+        {
+            _webSocket.OnBinaryMessage(message);
+        }
+
         Action<string> IWebSocket.OnMessage
+        {
+            get;
+            set;
+        }
+
+        Action<byte[]> IWebSocket.OnBinaryMessage
         {
             get;
             set;
@@ -76,6 +87,16 @@ namespace Microsoft.AspNet.SignalR.WebSockets
             }
 
             return base.SendAsync(message, WebSocketMessageType.Text);
+        }
+
+        public Task SendBinary(ArraySegment<byte> message)
+        {
+            if (_closed)
+            {
+                return TaskAsyncHelper.Empty;
+            }
+
+            return base.SendAsync(message, WebSocketMessageType.Binary);
         }
 
         public override Task CloseAsync()
